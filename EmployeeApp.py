@@ -1,72 +1,84 @@
-from employee import (
-    load_employees, save_employees, create_employee,
-    edit_employee, delete_employee, display_employees
-)
-
-def prompt_employee_fields(existing=None):
-    """
-    Prompts user for employee fields. If 'existing' is provided, shows current values.
-    Returns a tuple: (id, fname, lname, department, phNumber)
-    """
-    if existing:
-        print(f"Leave blank to keep current value.")
-        fname = input(f"First Name [{existing.fname}]: ") or existing.fname
-        lname = input(f"Last Name [{existing.lname}]: ") or existing.lname
-        department = input(f"Department [{existing.department}]: ") or existing.department
-        phNumber = input(f"Phone Number [{existing.phNumber}]: ") or existing._phNumber
-        return (existing.id, fname, lname, department, phNumber)
-    else:
-        id = input("ID: ")
-        fname = input("First Name: ")
-        lname = input("Last Name: ")
-        department = input("Department (3 uppercase letters): ")
-        phNumber = input("Phone Number (10 digits): ")
-        return (id, fname, lname, department, phNumber)
+from employee import Employee, Manager
+from EmployeeData import load_employees, save_employees
+import EmployeeView as view
 
 def main():
     employees = load_employees()
+
     while True:
-        print("\nEmployee Management Menu")
-        print("1. List Employees")
-        print("2. Add Employee")
-        print("3. Edit Employee")
-        print("4. Delete Employee")
-        print("5. Quit")
-        choice = input("Select an option (1-5): ").strip()
-        if choice == "1":
-            display_employees(employees)
-        elif choice == "2":
-            try:
-                id, fname, lname, department, phNumber = prompt_employee_fields()
-                create_employee(employees, id, fname, lname, department, phNumber)
-                print("Employee added.")
-            except Exception as e:
-                print(f"Error: {e}")
-        elif choice == "3":
-            display_employees(employees)
-            try:
-                idx = int(input("Enter employee number to edit: ")) - 1
-                if not (0 <= idx < len(employees)):
-                    print("Invalid employee number.")
+        try:
+            choice = view.show_menu()
+
+            if choice == "1":
+                # List
+                view.show_employees(employees)
+
+            elif choice == "2":
+                # Add
+                data = view.prompt_new_employee()
+                if data.get("role") == "Manager":
+                    emp = Manager(
+                        id=data["id"],
+                        fname=data["fname"],
+                        lname=data["lname"],
+                        department=data["department"],
+                        phNumber=data["phNumber"],
+                        team_size=int(data.get("team_size", 0)),
+                    )
+                else:
+                    emp = Employee(
+                        id=data["id"],
+                        fname=data["fname"],
+                        lname=data["lname"],
+                        department=data["department"],
+                        phNumber=data["phNumber"],
+                    )
+                employees.append(emp)
+                save_employees(employees)
+                view.show_message("Employee added.")
+
+            elif choice == "3":
+                # Edit
+                if not employees:
+                    view.show_message("No employees to edit.")
                     continue
-                _, fname, lname, department, phNumber = prompt_employee_fields(employees[idx])
-                edit_employee(employees, idx, fname, lname, department, phNumber)
-                print("Employee updated.")
-            except Exception as e:
-                print(f"Error: {e}")
-        elif choice == "4":
-            display_employees(employees)
-            try:
-                idx = int(input("Enter employee number to delete: ")) - 1
-                delete_employee(employees, idx)
-                print("Employee deleted.")
-            except Exception as e:
-                print(f"Error: {e}")
-        elif choice == "5":
-            print("Goodbye!")
-            break
-        else:
-            print("Invalid option. Please enter a number from 1 to 5.")
+                view.show_employees(employees)
+                idx = view.prompt_index(len(employees))
+                emp = employees[idx]
+                data = view.prompt_edit_employee(emp)
+
+                # Apply edits (business rules are enforced by model setters)
+                emp.fname = data["fname"]
+                emp.lname = data["lname"]
+                emp.department = data["department"]
+                emp.phNumber = data["phNumber"]
+                if isinstance(emp, Manager) and "team_size" in data:
+                    emp.team_size = int(data["team_size"])
+
+                save_employees(employees)
+                view.show_message("Employee updated.")
+
+            elif choice == "4":
+                # Delete
+                if not employees:
+                    view.show_message("No employees to delete.")
+                    continue
+                view.show_employees(employees)
+                idx = view.prompt_index(len(employees))
+                employees.pop(idx)
+                save_employees(employees)
+                view.show_message("Employee deleted.")
+
+            elif choice == "5":
+                view.show_message("Goodbye!")
+                break
+
+            else:
+                view.show_error("Invalid option. Please enter a number from 1 to 5.")
+
+        except Exception as e:
+            # Any model validation or bad input surfaces here
+            view.show_error(str(e))
 
 if __name__ == "__main__":
     main()
